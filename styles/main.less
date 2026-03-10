@@ -4,6 +4,7 @@
 .account-folders-sidebar {
 	padding: 0;
 	overflow-y: auto;
+	background-color: #efefef;
 }
 
 
@@ -22,6 +23,71 @@
 .account-folders-sidebar .item.selected .item-count-box {
 	background: #d84a4a;
 	color: #fff;
+}
+
+
+.account-folders-sidebar .custom-folder-context-menu {
+	position: fixed;
+	z-index: 9999;
+	min-width: 180px;
+	padding: 4px 0;
+	background: #fff;
+	border: 1px solid #cfcfcf;
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+	border-radius: 4px;
+}
+
+
+.account-folders-sidebar .custom-folder-context-menu .menu-item {
+	display: block;
+	width: 100%;
+	padding: 6px 10px;
+	text-align: left;
+	background: transparent;
+	border: 0;
+	color: #333;
+	cursor: pointer;
+}
+
+
+.account-folders-sidebar .custom-folder-context-menu .menu-item:hover {
+	background: #f1f3f5;
+}
+
+
+.account-folders-sidebar .custom-folder-create-dialog {
+	position: fixed;
+	z-index: 10000;
+	min-width: 220px;
+	padding: 8px;
+	background: #fff;
+	border: 1px solid #cfcfcf;
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+	border-radius: 4px;
+}
+
+
+.account-folders-sidebar .custom-folder-create-dialog input {
+	width: 100%;
+	height: 28px;
+	padding: 4px 8px;
+	border: 1px solid #cfcfcf;
+	border-radius: 3px;
+	outline: none;
+}
+
+
+.account-folders-sidebar .custom-folder-create-dialog .actions {
+	display: flex;
+	gap: 4px;
+	margin-top: 6px;
+}
+
+
+.account-folders-sidebar .custom-folder-create-dialog .actions .menu-item {
+	flex: 1;
+	padding: 6px 8px;
+	text-align: center;
 }
 
 // Hide Mailspring's default account sidebar to avoid unified inbox UI.
