@@ -18,8 +18,7 @@
     "mailspring": ">=1.6.3"
   },
   "windowTypes": {
-    "default": true,
-    "composer": true
+    "default": true
   },
   "description": "A Mailspring plugin to provide a classic inbox views separate from the unified inbox.",
   "devDependencies": {
