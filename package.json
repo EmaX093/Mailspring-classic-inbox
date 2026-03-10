@@ -1,0 +1,30 @@
+{
+  "name": "mailspring-classic-inboxes",
+  "main": "./lib/main",
+  "version": "1.0.0",
+  "author": {
+    "email": "emanuelgianico@gmail.com",
+    "name": "Emanuel Gianico",
+    "url": "https://github.com/EmaX093"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "engines": {
+    "mailspring": ">=1.6.3"
+  },
+  "windowTypes": {
+    "default": true,
+    "composer": true
+  },
+  "description": "A Mailspring plugin to provide a classic inbox views separate from the unified inbox.",
+  "devDependencies": {
+    "@types/react": "^16.7.22",
+    "typescript": "^3.6.3"
+  },
+  "license": "MIT"
+}

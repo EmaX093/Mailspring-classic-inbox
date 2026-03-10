@@ -1,0 +1,30 @@
+@import "ui-variables";
+@import "ui-mixins";
+
+.account-folders-sidebar {
+	padding: 0;
+	overflow-y: auto;
+}
+
+
+.account-folders-sidebar .outline-view {
+	margin-bottom: @padding-base-vertical;
+}
+
+
+.account-folders-sidebar .item .item-count-box {
+	box-shadow: none;
+	background: #d84a4a;
+	color: #fff;
+}
+
+
+.account-folders-sidebar .item.selected .item-count-box {
+	background: #d84a4a;
+	color: #fff;
+}
+
+// Hide Mailspring's default account sidebar to avoid unified inbox UI.
+.column-RootSidebar .account-sidebar {
+	display: none;
+}
