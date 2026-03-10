@@ -1,4 +1,5 @@
 # Mailspring Classic Inboxes
+DISCLAIMER: This is a brand-new plugin and may have unexpected behavior. The author holds no responsibility for any issues caused. Feedback and bug reports are welcome!
 
 Mailspring plugin for people who prefer a classic, per-account mailbox sidebar instead of a unified inbox workflow.
 
