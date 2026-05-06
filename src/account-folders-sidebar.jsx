@@ -61,6 +61,7 @@ export default class AccountFoldersSidebar extends React.Component {
     this.state = {
       ...this._getStateFromStores(),
       collapsedNodes: {},
+      collapsedAccounts: {},
       contextMenu: null,
       createDialog: null,
       hiddenCategoryIds: {},
@@ -117,6 +118,7 @@ export default class AccountFoldersSidebar extends React.Component {
       return {
         ...this._getStateFromStores(),
         collapsedNodes: prevState.collapsedNodes,
+        collapsedAccounts: prevState.collapsedAccounts,
         contextMenu: prevState.contextMenu,
         createDialog: prevState.createDialog,
         hiddenCategoryIds,
@@ -551,6 +553,19 @@ export default class AccountFoldersSidebar extends React.Component {
     return standardItems.concat(customTreeItems);
   };
 
+  _toggleAccountCollapsed = accountId => {
+    this.setState(prevState => ({
+      collapsedAccounts: {
+        ...prevState.collapsedAccounts,
+        [accountId]: !prevState.collapsedAccounts[accountId],
+      },
+    }));
+  };
+
+  _isAccountCollapsed = accountId => {
+    return !!this.state.collapsedAccounts[accountId];
+  };
+
   _onOpenFolder = perspective => {
     Actions.focusMailboxPerspective(perspective);
   };
@@ -582,13 +597,27 @@ export default class AccountFoldersSidebar extends React.Component {
 
     return (
       <div className="account-folders-sidebar" ref={this._setSidebarRef}>
-        {accounts.map(account => (
-          <OutlineView
-            key={account.id}
-            title={this._accountLabel(account)}
-            items={this._itemsForAccount(account)}
-          />
-        ))}
+        {accounts.map(account => {
+          const collapsed = this._isAccountCollapsed(account.id);
+          return (
+            <div key={account.id} className="account-section">
+              <div
+                className={`account-section-header${collapsed ? " collapsed" : ""}`}
+                onClick={() => this._toggleAccountCollapsed(account.id)}
+              >
+                <span className="account-section-arrow">{collapsed ? "▶" : "▼"}</span>
+                <span className="account-section-label">{this._accountLabel(account)}</span>
+              </div>
+              {!collapsed && (
+                <OutlineView
+                  key={account.id}
+                  title=""
+                  items={this._itemsForAccount(account)}
+                />
+              )}
+            </div>
+          );
+        })}
         {contextMenu ? (
           <div
             className="custom-folder-context-menu"

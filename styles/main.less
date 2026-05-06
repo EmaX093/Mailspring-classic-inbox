@@ -92,6 +92,45 @@
 	text-align: center;
 }
 
+.account-folders-sidebar .account-section {
+	margin-bottom: 2px;
+}
+
+.account-folders-sidebar .account-section .outline-view > .title {
+	display: none;
+}
+
+.account-folders-sidebar .account-section-header {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 5px 12px 4px;
+	cursor: pointer;
+	user-select: none;
+	color: @text-color-subtle;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.account-folders-sidebar .account-section-header:hover {
+	color: @text-color;
+}
+
+.account-folders-sidebar .account-section-arrow {
+	font-size: 8px;
+	opacity: 0.6;
+	flex-shrink: 0;
+}
+
+.account-folders-sidebar .account-section-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+
 // Hide Mailspring's default account sidebar to avoid unified inbox UI.
 .column-RootSidebar .account-sidebar {
 	display: none;
