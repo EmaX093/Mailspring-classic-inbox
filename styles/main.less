@@ -9,7 +9,7 @@
 
 
 .account-folders-sidebar .outline-view {
-	margin-bottom: @padding-base-vertical;
+	margin-bottom: 0;
 }
 
 
@@ -93,7 +93,13 @@
 }
 
 .account-folders-sidebar .account-section {
-	margin-bottom: 2px;
+	margin-bottom: 0;
+}
+
+.account-folders-sidebar .account-section + .account-section {
+	border-top: 1px solid @border-color-divider;
+	margin-top: 2px;
+	padding-top: 2px;
 }
 
 .account-folders-sidebar .account-section .outline-view > .title {
@@ -104,7 +110,7 @@
 	display: flex;
 	align-items: center;
 	gap: 5px;
-	padding: 5px 12px 4px;
+	padding: 4px 12px;
 	cursor: pointer;
 	user-select: none;
 	color: @text-color-subtle;
