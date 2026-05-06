@@ -12,6 +12,26 @@ import {
 } from "mailspring-exports";
 import { OutlineView } from "mailspring-component-kit";
 
+// ─── Plugin-level i18n ────────────────────────────────────────────────────────
+const PLUGIN_STRINGS = {
+  ru: {
+    "Hide folder": "Скрыть папку",
+    "Create subfolder": "Создать подпапку",
+    "Show hidden folders": "Показать скрытые папки",
+    "Hide hidden folders": "Скрыть скрытые папки",
+    "Hidden folders": "Скрытые папки",
+    "Show": "Показать",
+    "Create new subfolder": "Новая подпапка",
+    "Create": "Создать",
+    "Cancel": "Отмена",
+    "Are you sure?": "Вы уверены?",
+  },
+};
+
+const _pluginLang = (typeof window !== "undefined" && window.navigator.language || "en").split("-")[0].toLowerCase();
+const _pluginStrings = PLUGIN_STRINGS[_pluginLang] || {};
+const t = (str) => _pluginStrings[str] || str;
+
 const STORAGE_KEY = "mailspring-classic-inbox-hidden-folders";
 
 const FOLDERS = [
@@ -259,11 +279,14 @@ export default class AccountFoldersSidebar extends React.Component {
         if (!node) {
           node = {
             key: `group-${pathKey}`,
+            folderKey: `group-${pathKey}`,
             pathKey,
             path: currentPath.join("/"),
             label: part,
             iconName: "folder.png",
             perspective: null,
+            isCustom: true,
+            isGroup: true,
             children: [],
           };
           nodeByPath[pathKey] = node;
@@ -407,7 +430,7 @@ export default class AccountFoldersSidebar extends React.Component {
       return;
     }
 
-    const confirmed = window.confirm(localized("Are you sure?"));
+    const confirmed = window.confirm(t("Are you sure?"));
     if (!confirmed) {
       return;
     }
@@ -483,8 +506,31 @@ export default class AccountFoldersSidebar extends React.Component {
     const menu = this.state.contextMenu;
     if (!menu || !menu.node) return;
     this._hideContextMenu();
-    const key = menu.node.folderKey || menu.node.key;
-    this._hideFolderKey(key);
+    const node = menu.node;
+
+    if (node.isGroup) {
+      // Hide all categories whose path starts with this group's path
+      const prefix = node.path.toLowerCase();
+      const account = node.account;
+      const categories = CategoryStore.userCategories(account) || [];
+      const toHide = {};
+      categories.forEach(category => {
+        const catPath = String(category.path || category.displayName || category.name || "").toLowerCase();
+        if (catPath === prefix || catPath.startsWith(prefix + "/")) {
+          toHide[category.id] = true;
+        }
+      });
+      if (Object.keys(toHide).length > 0) {
+        this.setState(prevState => {
+          const hiddenFolderKeys = { ...prevState.hiddenFolderKeys, ...toHide };
+          this._saveHiddenFolderKeys(hiddenFolderKeys);
+          return { hiddenFolderKeys };
+        });
+      }
+    } else {
+      const key = node.folderKey || node.key;
+      this._hideFolderKey(key);
+    }
   };
 
   _onContextMenuCreate = () => {
@@ -679,7 +725,7 @@ export default class AccountFoldersSidebar extends React.Component {
                   <button
                     type="button"
                     className={`account-section-eye${showHidden ? " active" : ""}`}
-                    title={showHidden ? localized("Hide hidden folders") : localized("Show hidden folders")}
+                    title={showHidden ? t("Hide hidden folders") : t("Show hidden folders")}
                     onClick={e => { e.stopPropagation(); this._toggleShowHidden(account.id); }}
                   >
                     👁
@@ -695,7 +741,7 @@ export default class AccountFoldersSidebar extends React.Component {
               )}
               {!collapsed && showHidden && hasHidden && (
                 <div className="hidden-folders-section">
-                  <div className="hidden-folders-title">{localized("Hidden folders")}</div>
+                  <div className="hidden-folders-title">{t("Hidden folders")}</div>
                   {hiddenFolders.map(item => (
                     <div key={item.key} className="hidden-folder-row">
                       <span className="hidden-folder-name">{item.label}</span>
@@ -704,7 +750,7 @@ export default class AccountFoldersSidebar extends React.Component {
                         className="hidden-folder-restore"
                         onClick={() => this._showFolderKey(item.folderKey)}
                       >
-                        {localized("Show")}
+                        {t("Show")}
                       </button>
                     </div>
                   ))}
@@ -719,11 +765,11 @@ export default class AccountFoldersSidebar extends React.Component {
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
             <button type="button" className="menu-item" onClick={this._onContextMenuHide}>
-              {localized("Hide folder")}
+              {t("Hide folder")}
             </button>
-            {contextMenu.node.isCustom && [
+            {contextMenu.node.isCustom && !contextMenu.node.isGroup && [
               <button key="create" type="button" className="menu-item" onClick={this._onContextMenuCreate}>
-                {localized("Create subfolder")}
+                {t("Create subfolder")}
               </button>,
               <div key="sep" className="menu-separator" />,
               <button key="delete" type="button" className="menu-item menu-item-danger" onClick={this._onContextMenuDelete}>
@@ -741,16 +787,16 @@ export default class AccountFoldersSidebar extends React.Component {
               autoFocus
               type="text"
               value={createDialog.value}
-              placeholder={localized("Create new subfolder")}
+              placeholder={t("Create new subfolder")}
               onChange={this._onCreateDialogInputChange}
               onKeyDown={this._onCreateDialogKeyDown}
             />
             <div className="actions">
               <button type="button" className="menu-item" onClick={this._onCreateDialogConfirm}>
-                {localized("Create")}
+                {t("Create")}
               </button>
               <button type="button" className="menu-item" onClick={this._hideCreateDialog}>
-                {localized("Cancel")}
+                {t("Cancel")}
               </button>
             </div>
           </div>
