@@ -12,6 +12,8 @@ import {
 } from "mailspring-exports";
 import { OutlineView } from "mailspring-component-kit";
 
+const STORAGE_KEY = "mailspring-classic-inbox-hidden-folders";
+
 const FOLDERS = [
   {
     key: "inbox",
@@ -62,9 +64,10 @@ export default class AccountFoldersSidebar extends React.Component {
       ...this._getStateFromStores(),
       collapsedNodes: {},
       collapsedAccounts: {},
+      showHiddenAccounts: {},
       contextMenu: null,
       createDialog: null,
-      hiddenCategoryIds: {},
+      hiddenFolderKeys: this._loadHiddenFolderKeys(),
     };
     this._contextMenuNodesById = {};
     this._sidebarRef = null;
@@ -94,36 +97,52 @@ export default class AccountFoldersSidebar extends React.Component {
     this._sidebarRef = element;
   };
 
-  _onStoreChange = () => {
+  // ─── localStorage ────────────────────────────────────────────────────────────
+
+  _loadHiddenFolderKeys = () => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  };
+
+  _saveHiddenFolderKeys = keys => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
+    } catch (e) {}
+  };
+
+  _hideFolderKey = key => {
     this.setState(prevState => {
-      const hiddenCategoryIds = { ...prevState.hiddenCategoryIds };
-      const accounts = AccountStore.accounts() || [];
-      const activeCategoryIds = new Set();
-
-      accounts.forEach(account => {
-        const categories = CategoryStore.userCategories(account) || [];
-        categories.forEach(category => {
-          if (category && category.id) {
-            activeCategoryIds.add(category.id);
-          }
-        });
-      });
-
-      Object.keys(hiddenCategoryIds).forEach(categoryId => {
-        if (!activeCategoryIds.has(categoryId)) {
-          delete hiddenCategoryIds[categoryId];
-        }
-      });
-
-      return {
-        ...this._getStateFromStores(),
-        collapsedNodes: prevState.collapsedNodes,
-        collapsedAccounts: prevState.collapsedAccounts,
-        contextMenu: prevState.contextMenu,
-        createDialog: prevState.createDialog,
-        hiddenCategoryIds,
-      };
+      const hiddenFolderKeys = { ...prevState.hiddenFolderKeys, [key]: true };
+      this._saveHiddenFolderKeys(hiddenFolderKeys);
+      return { hiddenFolderKeys };
     });
+  };
+
+  _showFolderKey = key => {
+    this.setState(prevState => {
+      const hiddenFolderKeys = { ...prevState.hiddenFolderKeys };
+      delete hiddenFolderKeys[key];
+      this._saveHiddenFolderKeys(hiddenFolderKeys);
+      return { hiddenFolderKeys };
+    });
+  };
+
+  // ─── Store changes ────────────────────────────────────────────────────────────
+
+  _onStoreChange = () => {
+    this.setState(prevState => ({
+      ...this._getStateFromStores(),
+      collapsedNodes: prevState.collapsedNodes,
+      collapsedAccounts: prevState.collapsedAccounts,
+      showHiddenAccounts: prevState.showHiddenAccounts,
+      contextMenu: prevState.contextMenu,
+      createDialog: prevState.createDialog,
+      hiddenFolderKeys: prevState.hiddenFolderKeys,
+    }));
   };
 
   _getStateFromStores = () => {
@@ -133,18 +152,50 @@ export default class AccountFoldersSidebar extends React.Component {
     };
   };
 
+  // ─── Account helpers ──────────────────────────────────────────────────────────
+
   _accountLabel = account => account.label || account.emailAddress || account.id;
 
+  _toggleAccountCollapsed = accountId => {
+    this.setState(prevState => ({
+      collapsedAccounts: {
+        ...prevState.collapsedAccounts,
+        [accountId]: !prevState.collapsedAccounts[accountId],
+      },
+    }));
+  };
+
+  _isAccountCollapsed = accountId => !!this.state.collapsedAccounts[accountId];
+
+  _toggleShowHidden = accountId => {
+    this.setState(prevState => ({
+      showHiddenAccounts: {
+        ...prevState.showHiddenAccounts,
+        [accountId]: !prevState.showHiddenAccounts[accountId],
+      },
+    }));
+  };
+
+  // ─── Folder builders ──────────────────────────────────────────────────────────
+
+  _stdFolderKey = (accountId, folderKey) => `std-${accountId}-${folderKey}`;
+
   _standardFoldersForAccount = account => {
-    return FOLDERS.map(folder => {
-      const perspective = folder.makePerspective(account.id);
-      return {
-        key: `std-${account.id}-${folder.key}`,
-        label: folder.label,
-        perspective,
-        iconName: (perspective && perspective.iconName) || "folder.png",
-      };
-    });
+    const { hiddenFolderKeys } = this.state;
+    return FOLDERS
+      .map(folder => {
+        const folderKey = this._stdFolderKey(account.id, folder.key);
+        const perspective = folder.makePerspective(account.id);
+        return {
+          key: folderKey,
+          folderKey,
+          label: folder.label,
+          perspective,
+          iconName: (perspective && perspective.iconName) || "folder.png",
+          isStandard: true,
+          hidden: !!hiddenFolderKeys[folderKey],
+        };
+      });
   };
 
   _pathPartsForCategory = category => {
@@ -165,22 +216,24 @@ export default class AccountFoldersSidebar extends React.Component {
   };
 
   _customFoldersForAccount = account => {
+    const { hiddenFolderKeys } = this.state;
     const categories = CategoryStore.userCategories(account) || [];
     return categories
-      .filter(category => category && !this.state.hiddenCategoryIds[category.id])
+      .filter(category => category && !hiddenFolderKeys[category.id])
       .map(category => {
-      const parts = this._pathPartsForCategory(category);
-      const baseName = parts[parts.length - 1] || category.displayName || "Folder";
-      return {
-        id: category.id,
-        key: `custom-${category.id}`,
-        label: baseName,
-        category,
-        isCustom: true,
-        iconName: "folder.png",
-        parts,
-        perspective: MailboxPerspective.forCategory(category),
-      };
+        const parts = this._pathPartsForCategory(category);
+        const baseName = parts[parts.length - 1] || category.displayName || "Folder";
+        return {
+          id: category.id,
+          key: `custom-${category.id}`,
+          folderKey: category.id,
+          label: baseName,
+          category,
+          isCustom: true,
+          iconName: "folder.png",
+          parts,
+          perspective: MailboxPerspective.forCategory(category),
+        };
       });
   };
 
@@ -219,6 +272,7 @@ export default class AccountFoldersSidebar extends React.Component {
 
         if (index === folder.parts.length - 1) {
           node.key = folder.key;
+          node.folderKey = folder.folderKey;
           node.pathKey = pathKey;
           node.path = folder.parts.join("/");
           node.label = folder.label;
@@ -234,6 +288,31 @@ export default class AccountFoldersSidebar extends React.Component {
 
     return root;
   };
+
+  // Returns hidden folders (both standard and custom) for the "manage hidden" panel
+  _hiddenFoldersForAccount = account => {
+    const { hiddenFolderKeys } = this.state;
+    const result = [];
+
+    FOLDERS.forEach(folder => {
+      const key = this._stdFolderKey(account.id, folder.key);
+      if (hiddenFolderKeys[key]) {
+        result.push({ key, folderKey: key, label: folder.label });
+      }
+    });
+
+    const categories = CategoryStore.userCategories(account) || [];
+    categories.forEach(category => {
+      if (category && hiddenFolderKeys[category.id]) {
+        const label = category.displayName || category.name || category.path || "Folder";
+        result.push({ key: category.id, folderKey: category.id, label });
+      }
+    });
+
+    return result;
+  };
+
+  // ─── Node state ───────────────────────────────────────────────────────────────
 
   _nodeStateKey = (accountId, pathKey) => `${accountId}:${pathKey}`;
 
@@ -257,6 +336,8 @@ export default class AccountFoldersSidebar extends React.Component {
       },
     }));
   };
+
+  // ─── Drag & drop ─────────────────────────────────────────────────────────────
 
   _shouldAcceptThreadDrop = (targetPerspective, event) => {
     if (!targetPerspective || !event || !event.dataTransfer) {
@@ -295,6 +376,8 @@ export default class AccountFoldersSidebar extends React.Component {
     targetPerspective.receiveThreadIds(jsonData.threadIds);
   };
 
+  // ─── Category CRUD ────────────────────────────────────────────────────────────
+
   _onCreateCategory = account => {
     return (displayName, parentPath = null) => {
       const rawName = (displayName || "").trim();
@@ -329,14 +412,14 @@ export default class AccountFoldersSidebar extends React.Component {
       return;
     }
 
+    // Hide immediately as optimistic UI (in-memory only, not persisted)
     const categoryId = node.category.id;
     if (categoryId) {
-      this.setState(prevState => ({
-        hiddenCategoryIds: {
-          ...prevState.hiddenCategoryIds,
-          [categoryId]: true,
-        },
-      }));
+      this.setState(prevState => {
+        const hiddenFolderKeys = { ...prevState.hiddenFolderKeys, [categoryId]: true };
+        this._saveHiddenFolderKeys(hiddenFolderKeys);
+        return { hiddenFolderKeys };
+      });
     }
 
     Actions.queueTask(
@@ -347,15 +430,15 @@ export default class AccountFoldersSidebar extends React.Component {
     );
   };
 
+  // ─── Misc helpers ─────────────────────────────────────────────────────────────
+
   _iconNameForNode = node => {
-    if (node.iconName) {
-      return node.iconName;
-    }
-    if (node.perspective && node.perspective.iconName) {
-      return node.perspective.iconName;
-    }
+    if (node.iconName) return node.iconName;
+    if (node.perspective && node.perspective.iconName) return node.perspective.iconName;
     return "folder.png";
   };
+
+  // ─── Context menu & dialogs ───────────────────────────────────────────────────
 
   _hideContextMenu = () => {
     if (this.state.contextMenu) {
@@ -396,18 +479,24 @@ export default class AccountFoldersSidebar extends React.Component {
     }
   };
 
+  _onContextMenuHide = () => {
+    const menu = this.state.contextMenu;
+    if (!menu || !menu.node) return;
+    this._hideContextMenu();
+    const key = menu.node.folderKey || menu.node.key;
+    this._hideFolderKey(key);
+  };
+
   _onContextMenuCreate = () => {
     const menu = this.state.contextMenu;
-    if (!menu || !menu.node) {
-      return;
-    }
+    if (!menu || !menu.node) return;
     this.setState({
       contextMenu: null,
       createDialog: {
         x: menu.x,
         y: menu.y,
         account: menu.node.account,
-        parentPath: menu.node.category.path,
+        parentPath: menu.node.category ? menu.node.category.path : null,
         value: "",
       },
     });
@@ -415,9 +504,7 @@ export default class AccountFoldersSidebar extends React.Component {
 
   _onContextMenuDelete = () => {
     const menu = this.state.contextMenu;
-    if (!menu || !menu.node) {
-      return;
-    }
+    if (!menu || !menu.node) return;
     this._hideContextMenu();
     this._onDeleteCategory(menu.node);
   };
@@ -426,27 +513,20 @@ export default class AccountFoldersSidebar extends React.Component {
     const value = event && event.target ? event.target.value : "";
     this.setState(prevState => ({
       createDialog: prevState.createDialog
-        ? {
-            ...prevState.createDialog,
-            value,
-          }
+        ? { ...prevState.createDialog, value }
         : null,
     }));
   };
 
   _onCreateDialogConfirm = () => {
     const dialog = this.state.createDialog;
-    if (!dialog) {
-      return;
-    }
+    if (!dialog) return;
     this._onCreateCategoryFromAction(dialog.account, dialog.parentPath, dialog.value);
     this._hideCreateDialog();
   };
 
   _onCreateDialogKeyDown = event => {
-    if (!event) {
-      return;
-    }
+    if (!event) return;
     if (event.key === "Enter") {
       event.preventDefault();
       this._onCreateDialogConfirm();
@@ -458,9 +538,7 @@ export default class AccountFoldersSidebar extends React.Component {
     while (node) {
       if (node.classList && node.classList.length > 0) {
         const match = Array.from(node.classList).find(name => name.indexOf("ctx-folder-") === 0);
-        if (match) {
-          return match;
-        }
+        if (match) return match;
       }
       node = node.parentElement;
     }
@@ -468,19 +546,15 @@ export default class AccountFoldersSidebar extends React.Component {
   };
 
   _onNativeContextMenuCapture = event => {
-    if (!this._sidebarRef || !event || !event.target) {
-      return;
-    }
+    if (!this._sidebarRef || !event || !event.target) return;
 
     const clickedInsideSidebar = this._sidebarRef.contains(event.target);
-    if (!clickedInsideSidebar) {
-      return;
-    }
+    if (!clickedInsideSidebar) return;
 
     const contextClass = this._extractContextClass(event.target);
     const node = contextClass ? this._contextMenuNodesById[contextClass] : null;
 
-    if (!node || !node.isCustom) {
+    if (!node) {
       this._hideContextMenu();
       return;
     }
@@ -497,6 +571,8 @@ export default class AccountFoldersSidebar extends React.Component {
     });
   };
 
+  // ─── OutlineView item builder ─────────────────────────────────────────────────
+
   _asOutlineItem = (node, account) => {
     const accountId = account.id;
     const outlineId = `${accountId}-${node.key}`;
@@ -507,18 +583,16 @@ export default class AccountFoldersSidebar extends React.Component {
     const selected = node.perspective ? this._isSelected(node.perspective) : false;
     const childItems = (node.children || []).map(child => this._asOutlineItem(child, account));
 
-    if (node.isCustom) {
-      this._contextMenuNodesById[contextClass] = {
-        ...node,
-        account,
-      };
+    // Register all nodes (standard + custom) so any can be right-clicked
+    if (node.isCustom || node.isStandard) {
+      this._contextMenuNodesById[contextClass] = { ...node, account };
     }
 
     return {
       id: outlineId,
       name: node.label,
       iconName: this._iconNameForNode(node),
-      className: node.isCustom ? contextClass : undefined,
+      className: (node.isCustom || node.isStandard) ? contextClass : undefined,
       count,
       selected,
       collapsed: hasChildren ? this._isNodeCollapsed(accountId, node.pathKey || node.key) : false,
@@ -535,16 +609,20 @@ export default class AccountFoldersSidebar extends React.Component {
   };
 
   _itemsForAccount = account => {
-    const standardItems = this._standardFoldersForAccount(account).map(folder => {
-      const node = {
-        key: folder.key,
-        label: folder.label,
-        iconName: folder.iconName,
-        perspective: folder.perspective,
-        children: [],
-      };
-      return this._asOutlineItem(node, account);
-    });
+    const standardItems = this._standardFoldersForAccount(account)
+      .filter(folder => !folder.hidden)
+      .map(folder => {
+        const node = {
+          key: folder.key,
+          folderKey: folder.folderKey,
+          label: folder.label,
+          iconName: folder.iconName,
+          perspective: folder.perspective,
+          isStandard: true,
+          children: [],
+        };
+        return this._asOutlineItem(node, account);
+      });
 
     const customTreeItems = this._customFolderTreeForAccount(account).map(node =>
       this._asOutlineItem(node, account)
@@ -553,18 +631,7 @@ export default class AccountFoldersSidebar extends React.Component {
     return standardItems.concat(customTreeItems);
   };
 
-  _toggleAccountCollapsed = accountId => {
-    this.setState(prevState => ({
-      collapsedAccounts: {
-        ...prevState.collapsedAccounts,
-        [accountId]: !prevState.collapsedAccounts[accountId],
-      },
-    }));
-  };
-
-  _isAccountCollapsed = accountId => {
-    return !!this.state.collapsedAccounts[accountId];
-  };
+  // ─── Focus / counts ───────────────────────────────────────────────────────────
 
   _onOpenFolder = perspective => {
     Actions.focusMailboxPerspective(perspective);
@@ -576,16 +643,13 @@ export default class AccountFoldersSidebar extends React.Component {
   };
 
   _countForPerspective = perspective => {
-    if (!perspective || typeof perspective.unreadCount !== "function") {
-      return 0;
-    }
-
+    if (!perspective || typeof perspective.unreadCount !== "function") return 0;
     const count = perspective.unreadCount();
-    if (!count || count < 0) {
-      return 0;
-    }
+    if (!count || count < 0) return 0;
     return count;
   };
+
+  // ─── Render ───────────────────────────────────────────────────────────────────
 
   render() {
     const { accounts, contextMenu, createDialog } = this.state;
@@ -599,6 +663,10 @@ export default class AccountFoldersSidebar extends React.Component {
       <div className="account-folders-sidebar" ref={this._setSidebarRef}>
         {accounts.map(account => {
           const collapsed = this._isAccountCollapsed(account.id);
+          const showHidden = !!this.state.showHiddenAccounts[account.id];
+          const hiddenFolders = this._hiddenFoldersForAccount(account);
+          const hasHidden = hiddenFolders.length > 0;
+
           return (
             <div key={account.id} className="account-section">
               <div
@@ -607,6 +675,16 @@ export default class AccountFoldersSidebar extends React.Component {
               >
                 <span className="account-section-arrow">{collapsed ? "▶" : "▼"}</span>
                 <span className="account-section-label">{this._accountLabel(account)}</span>
+                {hasHidden && (
+                  <button
+                    type="button"
+                    className={`account-section-eye${showHidden ? " active" : ""}`}
+                    title={showHidden ? localized("Hide hidden folders") : localized("Show hidden folders")}
+                    onClick={e => { e.stopPropagation(); this._toggleShowHidden(account.id); }}
+                  >
+                    👁
+                  </button>
+                )}
               </div>
               {!collapsed && (
                 <OutlineView
@@ -614,6 +692,23 @@ export default class AccountFoldersSidebar extends React.Component {
                   title=""
                   items={this._itemsForAccount(account)}
                 />
+              )}
+              {!collapsed && showHidden && hasHidden && (
+                <div className="hidden-folders-section">
+                  <div className="hidden-folders-title">{localized("Hidden folders")}</div>
+                  {hiddenFolders.map(item => (
+                    <div key={item.key} className="hidden-folder-row">
+                      <span className="hidden-folder-name">{item.label}</span>
+                      <button
+                        type="button"
+                        className="hidden-folder-restore"
+                        onClick={() => this._showFolderKey(item.folderKey)}
+                      >
+                        {localized("Show")}
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           );
@@ -623,12 +718,18 @@ export default class AccountFoldersSidebar extends React.Component {
             className="custom-folder-context-menu"
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
-            <button type="button" className="menu-item" onClick={this._onContextMenuCreate}>
-              {localized("Create new item")}
+            <button type="button" className="menu-item" onClick={this._onContextMenuHide}>
+              {localized("Hide folder")}
             </button>
-            <button type="button" className="menu-item" onClick={this._onContextMenuDelete}>
-              {`${localized("Delete")} ${contextMenu.node.label}`}
-            </button>
+            {contextMenu.node.isCustom && [
+              <button key="create" type="button" className="menu-item" onClick={this._onContextMenuCreate}>
+                {localized("Create subfolder")}
+              </button>,
+              <div key="sep" className="menu-separator" />,
+              <button key="delete" type="button" className="menu-item menu-item-danger" onClick={this._onContextMenuDelete}>
+                {`${localized("Delete")} ${contextMenu.node.label}`}
+              </button>,
+            ]}
           </div>
         ) : null}
         {createDialog ? (
@@ -640,7 +741,7 @@ export default class AccountFoldersSidebar extends React.Component {
               autoFocus
               type="text"
               value={createDialog.value}
-              placeholder={localized("Create new item")}
+              placeholder={localized("Create new subfolder")}
               onChange={this._onCreateDialogInputChange}
               onKeyDown={this._onCreateDialogKeyDown}
             />
